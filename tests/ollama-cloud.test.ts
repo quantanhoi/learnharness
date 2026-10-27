@@ -34,11 +34,13 @@ describe("the ollama cloud catalog", () => {
 		}
 	});
 
-	it("pins a curated specimen (gemma4:31b from ollama.com/pricing)", () => {
+	it("pins a curated specimen (gemma4:31b — exact context from /api/show)", () => {
 		const gemma = OLLAMA_CLOUD_MODELS.find((m) => m.id === "gemma4:31b");
 		assert.ok(gemma, "gemma4:31b present (the /api/tags API name, not the bare library name)");
 		assert.deepEqual(gemma!.cost, { input: 0.14, output: 0.40, cacheRead: 0.05, cacheWrite: 0 });
-		assert.equal(gemma!.contextWindow, 256_000);
+		// The EXACT binary context (/api/show's model_info), not the page's
+		// rounded "256K" — the regen script's source of truth.
+		assert.equal(gemma!.contextWindow, 262_144);
 		assert.deepEqual(gemma!.input, ["text", "image"]);
 	});
 

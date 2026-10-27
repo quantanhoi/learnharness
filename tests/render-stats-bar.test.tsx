@@ -104,6 +104,20 @@ describe("stats bar", () => {
 		// qualified on a bare id: no suffix invented
 		assert.equal(prettyModel("z-ai/glm-5.3-flash", true), "glm-5.3-flash");
 	});
+
+	it("keeps provider-native tag ids visible (ollama cloud)", () => {
+		// Bare catalog ids with a colon are TAGS, not provider stamps. The old
+		// implicit split + date-trim blanked them — "deepseek-v4.1-flash:1017"
+		// rendered as "", which read as "the pick didn't stick" in every
+		// trigger (settings slots, setup dialog, chat pill).
+		assert.equal(prettyModel("deepseek-v4.1-flash:1017"), "deepseek-v4.1-flash:1017");
+		assert.equal(prettyModel("gemma4:31b"), "gemma4:31b");
+		assert.equal(prettyModel("gpt-oss:120b"), "gpt-oss:120b");
+		// A QUALIFIED stamp splits on the FIRST colon only — the tag survives.
+		assert.equal(prettyModel("ollama-cloud:deepseek-v4.1-flash:1017", true), "deepseek-v4.1-flash:1017 · ollama-cloud");
+		// An all-digit id never trims itself away.
+		assert.equal(prettyModel("1017"), "1017");
+	});
 });
 
 describe("catalogLimits (the stats-bar live-limits join, pure)", () => {

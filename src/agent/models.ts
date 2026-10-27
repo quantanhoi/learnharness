@@ -8,6 +8,7 @@ import {
 	type StreamFunction,
 } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
+import { ollamaCloudProvider } from "./ollama-cloud.ts";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { type ModelRole } from "../../config.ts";
 import { DEFAULT_THINKING_ORDER } from "../core/settings.ts";
@@ -62,6 +63,9 @@ export function piModels() {
 	if (!collection) {
 		collection = createModels({ identity: APP_IDENTITY });
 		for (const provider of builtinProviders()) collection.setProvider(provider);
+		// The one app-constructed provider (ollama-cloud.ts): a normal keyed
+		// provider pi-ai doesn't ship — its key rides the same env seam.
+		collection.setProvider(ollamaCloudProvider());
 	}
 	return collection;
 }

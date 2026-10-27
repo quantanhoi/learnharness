@@ -14,6 +14,7 @@ import {
 	type JsonObject, type TranscriptContext, type Usage,
 } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
+import { ollamaCloudProvider } from "../src/agent/ollama-cloud.ts";
 import { APP_IDENTITY, piEngineForSpec, type PiEngine } from "../src/agent/models.ts";
 import { runVisualMaker } from "../src/agent/subagents/visual-maker.ts";
 import { runPdfReaderAgent } from "../src/agent/subagents/pdf-reader.ts";
@@ -245,6 +246,9 @@ describe("provider-neutral raw agent loops", { concurrency: false }, () => {
 			const env = Object.fromEntries(AUTH_PROVIDER_KEYS.map(({ envVar }) => [envVar, `dummy-resolver-${envVar}`]));
 			const models = createModels({ authContext: { env: async (name) => env[name], fileExists: async () => false } });
 			for (const provider of builtinProviders()) models.setProvider(provider);
+			// The table's one app-constructed row (ollama-cloud.ts) registers
+			// like any builtin — its auth reads the same env seam.
+			models.setProvider(ollamaCloudProvider());
 			for (const { id, envVar } of AUTH_PROVIDER_KEYS) {
 				const resolved = await models.getAuth(id);
 				assert.ok(resolved, id);

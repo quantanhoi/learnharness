@@ -40,12 +40,19 @@ export function splitQualified(id: string): { provider: string | null; id: strin
  * the provider rides as a quiet suffix — "glm-5.3-flash · openrouter" —
  * because with federation the same model via two providers is genuinely
  * different bookkeeping. Bare catalog ids are unchanged.
+ *
+ * COLONS BELONG TO BARE IDS (2026-10-27): only a QUALIFIED stamp splits
+ * on the FIRST colon — provider tags like ollama cloud's
+ * "deepseek-v4.1-flash:1017" or "gemma4:31b" are the model's own name.
+ * The old implicit split blanked those (provider "deepseek-v4.1-flash",
+ * id "1017" → date-trimmed to "") and every trigger showed "—" over a
+ * saved pick. The date-trim also never empties an all-digit id.
  */
 export function prettyModel(id: string, qualified = false): string {
-	const { provider, id: bare } = splitQualified(id);
+	const { provider, id: bare } = qualified ? splitQualified(id) : { provider: null, id };
 	const short = bare.includes("/") ? bare.slice(bare.lastIndexOf("/") + 1) : bare;
 	const parts = short.split("-");
-	const trimmed = /^\d+$/.test(parts[parts.length - 1] ?? "") ? parts.slice(0, -1) : parts;
+	const trimmed = parts.length > 1 && /^\d+$/.test(parts[parts.length - 1] ?? "") ? parts.slice(0, -1) : parts;
 	// No auto-capitalization, dashes KEPT (owner rounds 4-5, 2026-10-05):
 	// model names render exactly as their providers write them.
 	const pretty = trimmed.join("-");

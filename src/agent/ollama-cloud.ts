@@ -1,0 +1,129 @@
+/**
+ * The Ollama Cloud provider (owner redirect, 2026-10-27): ollama.com's keyed
+ * hosted service, wired as a NORMAL keyed provider — pi-ai 1.4.0 ships no
+ * ollama entry, so this module constructs one with createProvider and
+ * registers it into the process-wide piModels() collection.
+ *
+ * AUTH: OLLAMA_API_KEY (https://ollama.com/settings/keys) through pi-ai's own
+ * envApiKeyAuth — the same env seam every builtin provider reads, which the
+ * app's keys store reflects file-saved keys into. The provider rides
+ * AUTH_PROVIDER_KEYS (core/auth-keys.ts), so the picker federates on the
+ * key's presence, the Keys page writes it, and the turn gate refuses with the
+ * honest "No Ollama Cloud key is set" envelope — all for free.
+ *
+ * API: ollama.com serves OpenAI-compatible chat at https://ollama.com/v1
+ * (Authorization: Bearer <key>). REASONING EFFORT IS MAPPED (live-verified
+ * 2026-10-27): the endpoint accepts reasoning_effort and VALIDATES it — an
+ * invalid value 400s listing the legal set "minimal|low|medium|high|xhigh|
+ * ultra|max|none", which covers pi's whole ladder 1:1. A live probe on
+ * gpt-oss:20b grew its reasoning from 17 → 143 chars low → high, so the
+ * dial is real, not cosmetic. Every /api/tags model carrying the "thinking"
+ * capability gets the full ladder; mistral-large-3:675b (no thinking
+ * capability) stays off-only. pi sends nothing at level "off" (its absence
+ * is the "none" ollama also accepts).
+ *
+ * CATALOG (owner choice, curated over dynamic): /api/tags returns NAMES
+ * only — no price, no context — and the app's cost + context meters read
+ * both, so the catalog is hand-curated below from ollama.com/pricing, the
+ * library pages, and the /api/tags API names. Refresh on app updates.
+ */
+
+import { createProvider, envApiKeyAuth, type Model, type Provider } from "@earendil-works/pi-ai";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+
+export const OLLAMA_CLOUD_BASE_URL = "https://ollama.com/v1";
+
+/**
+ * Curated 2026-10-27. Ids are the exact /api/tags names (gemma4:31b,
+ * deepseek-v4-pro:0813 — NOT the bare library names the pricing table uses;
+ * "use the name returned by this list", ollama cloud docs). Contexts come
+ * from the library pages, rounded DOWN where only a K/M figure is published
+ * (256_000 for "256K") so the context meter never overstates what the server
+ * accepts — ollama docs: "cloud models use their maximum context length by
+ * default". Prices are USD per 1M tokens from ollama.com/pricing; a dash in
+ * the Cached input column means no published cached rate, so cacheRead
+ * carries the INPUT rate (cached tokens, if any are reported, are billed as
+ * input — never under-report a paid service). beam is the free starter model
+ * (absent from the "every cloud model" pricing table, marked free on the
+ * model page). clef:27b is excluded — a decision model, not chat.
+ * maxTokens is a flat placeholder: ollama publishes no per-model output cap
+ * and pi-ai only sends a cap when the caller sets one (the app never does).
+ */
+/** Ollama's accepted reasoning_effort values, 1:1 with pi's ladder — the
+ *  endpoint's own 400 message (live-captured 2026-10-27) lists
+ *  "minimal", "low", "medium", "high", "xhigh", "ultra", "max", "none".
+ *  pi has no "ultra" level and omits the field for "off" (ollama's "none"). */
+const OLLAMA_EFFORT_MAP = {
+	minimal: "minimal",
+	low: "low",
+	medium: "medium",
+	high: "high",
+	xhigh: "xhigh",
+	max: "max",
+} as const;
+
+function cloudModel(
+	id: string,
+	name: string,
+	price: { input: number; cached: number | null; output: number },
+	contextWindow: number,
+	vision: boolean,
+	thinking: boolean,
+): Model<"openai-completions"> {
+	return {
+		id,
+		name,
+		api: "openai-completions",
+		provider: "ollama-cloud",
+		baseUrl: OLLAMA_CLOUD_BASE_URL,
+		input: vision ? ["text", "image"] : ["text"],
+		cost: {
+			input: price.input,
+			output: price.output,
+			cacheRead: price.cached ?? price.input,
+			cacheWrite: 0,
+		},
+		reasoning: thinking,
+		...(thinking ? { thinkingLevelMap: OLLAMA_EFFORT_MAP } : {}),
+		contextWindow,
+		maxTokens: 32_768,
+	};
+}
+
+export const OLLAMA_CLOUD_MODELS: readonly Model<"openai-completions">[] = [
+	cloudModel("beam", "Beam", { input: 0, cached: null, output: 0 }, 1_000_000, false, true),
+	cloudModel("deepseek-v4.1-flash", "DeepSeek V4.1 Flash", { input: 0.30, cached: 0.006, output: 1.20 }, 1_000_000, true, true),
+	cloudModel("deepseek-v4.1-flash:1017", "DeepSeek V4.1 Flash (1017)", { input: 0.30, cached: 0.006, output: 1.20 }, 1_000_000, true, true),
+	cloudModel("deepseek-v4-pro:0813", "DeepSeek V4 Pro", { input: 1.32, cached: 0.044, output: 3.96 }, 1_000_000, false, true),
+	cloudModel("gemma4:31b", "Gemma 4 31B", { input: 0.14, cached: 0.05, output: 0.40 }, 256_000, true, true),
+	cloudModel("glm-5.2", "GLM-5.2", { input: 1.40, cached: 0.26, output: 4.40 }, 1_000_000, false, true),
+	cloudModel("glm-5.3", "GLM-5.3", { input: 1.40, cached: 0.26, output: 4.40 }, 1_000_000, false, true),
+	cloudModel("glm-5.3-flash", "GLM-5.3 Flash", { input: 0.15, cached: 0.03, output: 0.50 }, 1_000_000, true, true),
+	cloudModel("gpt-oss:20b", "GPT-OSS 20B", { input: 0.07, cached: 0.035, output: 0.30 }, 131_072, false, true),
+	cloudModel("gpt-oss:120b", "GPT-OSS 120B", { input: 0.15, cached: 0.014, output: 0.60 }, 131_072, false, true),
+	cloudModel("kimi-k2.6", "Kimi K2.6", { input: 0.95, cached: 0.16, output: 4.00 }, 256_000, true, true),
+	cloudModel("kimi-k2.7-code", "Kimi K2.7 Code", { input: 0.95, cached: 0.19, output: 4.00 }, 256_000, true, true),
+	cloudModel("kimi-k3", "Kimi K3", { input: 3.00, cached: 0.30, output: 15.00 }, 1_000_000, true, true),
+	cloudModel("minimax-m2.7", "MiniMax M2.7", { input: 0.30, cached: 0.06, output: 1.20 }, 192_000, false, true),
+	cloudModel("minimax-m3", "MiniMax M3", { input: 0.60, cached: 0.12, output: 2.40 }, 512_000, true, true),
+	cloudModel("minimax-m3.1-flash", "MiniMax M3.1 Flash", { input: 0.15, cached: 0.015, output: 0.60 }, 976_000, true, true),
+	cloudModel("mistral-large-3:675b", "Mistral Large 3", { input: 0.50, cached: null, output: 1.50 }, 256_000, true, false),
+	cloudModel("mistral-large-4", "Mistral Large 4", { input: 0.68, cached: 0.07, output: 2.09 }, 1_000_000, true, true),
+	cloudModel("muse-spark-open", "Muse Spark Open", { input: 1.25, cached: 0.15, output: 4.25 }, 1_000_000, true, true),
+	cloudModel("nemotron-3-nano:30b", "Nemotron 3 Nano 30B", { input: 0.06, cached: null, output: 0.24 }, 256_000, false, true),
+	cloudModel("nemotron-3-super", "Nemotron 3 Super", { input: 0.015, cached: 0.015, output: 0.60 }, 256_000, false, true),
+	cloudModel("nemotron-3-ultra", "Nemotron 3 Ultra", { input: 0.10, cached: 0.10, output: 3.00 }, 256_000, false, true),
+];
+
+/** The Ollama Cloud provider: a plain keyed provider over the curated
+ *  catalog. No fetchModels — the catalog is static; refresh it with the app. */
+export function ollamaCloudProvider(): Provider<"openai-completions"> {
+	return createProvider({
+		id: "ollama-cloud",
+		name: "Ollama Cloud",
+		baseUrl: OLLAMA_CLOUD_BASE_URL,
+		auth: { apiKey: envApiKeyAuth("Ollama API key", ["OLLAMA_API_KEY"]) },
+		models: OLLAMA_CLOUD_MODELS,
+		api: openAICompletionsApi(),
+	});
+}

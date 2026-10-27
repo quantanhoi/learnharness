@@ -28,6 +28,14 @@ import { findEnvKeys } from "../node_modules/@earendil-works/pi-ai/dist/env-api-
  *  stay env-only by owner spec; asserted absent below. */
 const ANTHROPIC_ALTERNATES = ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_OAUTH_TOKEN"];
 
+/** The one APP-CONSTRUCTED keyed provider (ollama-cloud, 2026-10-27):
+ *  src/agent/ollama-cloud.ts builds it with createProvider and reads
+ *  OLLAMA_API_KEY through pi-ai's own envApiKeyAuth, so it joins the derived
+ *  builtin rows and the exact-equality gate below pins it against drift. */
+const APP_OWNED_ROWS: ReadonlyArray<{ id: string; envVar: string; label: string }> = [
+	{ id: "ollama-cloud", envVar: "OLLAMA_API_KEY", label: "Ollama Cloud" },
+];
+
 const EXCLUDED_PROVIDERS = new Set([
 	"github-copilot",
 	"amazon-bedrock",
@@ -44,7 +52,7 @@ const truthyEnv = new Proxy({} as Record<string, string>, {
 	has: () => true,
 });
 
-/** The truth, derived from pi-ai at test time. */
+/** The truth, derived from pi-ai at test time (+ the app-owned rows). */
 function deriveProviders() {
 	const rows: Array<{ id: string; envVar: string; label: string }> = [];
 	for (const p of builtinProviders()) {
@@ -55,6 +63,7 @@ function deriveProviders() {
 		const envVar = p.id === "anthropic" ? "ANTHROPIC_API_KEY" : first;
 		rows.push({ id: p.id, envVar, label: p.name });
 	}
+	rows.push(...APP_OWNED_ROWS.map((row) => ({ ...row })));
 	rows.sort((a, b) => a.id.localeCompare(b.id));
 	return rows;
 }

@@ -83,6 +83,12 @@ export interface AuthProviderInfo {
  * no env-key (naturally absent). Providers sharing one env var (moonshotai
  * / moonshotai-cn, opencode / opencode-go, the qwen-token-plan pair,
  * xiaomi variants) each keep their own row — the UI groups as it wishes.
+ *
+ * THE ONE APP-CONSTRUCTED ROW (2026-10-27): "ollama-cloud" is not a pi-ai
+ * builtin — src/agent/ollama-cloud.ts builds it with createProvider, and its
+ * auth reads OLLAMA_API_KEY through pi-ai's own envApiKeyAuth, so the same
+ * no-drift contract holds (the env var is what pi actually reads). Pinned
+ * in tests/auth-provider-keys.test.ts alongside the derived builtin rows.
  */
 export const AUTH_PROVIDER_KEYS: readonly AuthProviderInfo[] = [
 	{ id: "ant-ling", envVar: "ANT_LING_API_KEY", label: "Ant Ling" },
@@ -102,6 +108,7 @@ export const AUTH_PROVIDER_KEYS: readonly AuthProviderInfo[] = [
 	{ id: "moonshotai", envVar: "MOONSHOT_API_KEY", label: "Moonshot AI" },
 	{ id: "moonshotai-cn", envVar: "MOONSHOT_API_KEY", label: "Moonshot AI CN" },
 	{ id: "nvidia", envVar: "NVIDIA_API_KEY", label: "NVIDIA" },
+	{ id: "ollama-cloud", envVar: "OLLAMA_API_KEY", label: "Ollama Cloud" },
 	{ id: "openai", envVar: "OPENAI_API_KEY", label: "OpenAI" },
 	{ id: "opencode", envVar: "OPENCODE_API_KEY", label: "OpenCode Zen" },
 	{ id: "opencode-go", envVar: "OPENCODE_API_KEY", label: "OpenCode Go" },
